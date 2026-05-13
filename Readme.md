@@ -96,3 +96,104 @@ com todas as jogadas tentadas pelos jogadores (inclusive as ilegais). Um arquivo
 
 ISSO ABAIXO AINDA NAO FUNCIONA:
 Para ver o tabuleiro e as peças com cores, instale a biblioteca `pytermgui` (por exemplo, com `pip install pytermgui`) e execute o `server_tui.py` ao invés do `server.py`. 
+
+---
+
+# Relatorio da Implementacao
+
+## Identificacao
+
+Preencher antes da entrega:
+
+- Integrante(s): TODO
+- Cartao(oes) de matricula: TODO
+- Turma: TODO
+
+## Bibliotecas
+
+A implementacao usa apenas bibliotecas padrao do Python. Nao ha dependencias adicionais obrigatorias.
+
+## Minimax com poda alfa-beta
+
+A funcao `minimax_move` foi implementada em `advsearch/your_agent/minimax.py` de forma generica, usando apenas a interface comum dos estados dos jogos:
+
+- `legal_moves()`
+- `next_state(move)`
+- `is_terminal()`
+- `winner()`
+
+A avaliacao sempre considera o jogador da raiz da busca. A profundidade `-1` representa busca ilimitada. Para Othello, tambem foi considerado o caso em que o mesmo jogador pode jogar novamente quando o adversario nao possui jogadas legais.
+
+## Tic-Tac-Toe Misere
+
+O agente em `advsearch/your_agent/tttm_minimax.py` usa minimax com profundidade ilimitada, pois a profundidade maxima do jogo e 9.
+
+A funcao `utility` retorna:
+
+- `1` para vitoria do jogador avaliado;
+- `-1` para derrota;
+- `0` para empate.
+
+Resultados observados:
+
+| Partida | Resultado |
+| --- | --- |
+| Minimax (B) x Random (W) | Minimax venceu, placar B=1, W=-1 |
+| Random (B) x Minimax (W) | Minimax venceu, placar B=-1, W=1 |
+| Minimax (B) x Minimax (W) | Empate, placar B=0, W=0 |
+
+Assim, nos testes executados, o minimax venceu contra o `randomplayer` jogando com ambas as cores e empatou contra si mesmo.
+
+## Othello
+
+Foram implementadas tres avaliacoes para Othello:
+
+- `evaluate_count`: diferenca entre quantidade de pecas do jogador e do oponente.
+- `evaluate_mask`: diferenca de valores posicionais usando a mascara fixa fornecida no enunciado.
+- `evaluate_custom`: combinacao de valor posicional, mobilidade, controle de cantos, penalizacao de casas perigosas proximas a cantos vazios e diferenca de pecas com peso maior no final do jogo.
+
+O criterio de parada usado nos agentes minimax de Othello foi profundidade maxima fixa igual a 3. Essa escolha manteve as partidas dentro do limite de tempo nos testes locais.
+
+## Mini-torneio de Othello
+
+Resultados coletados com o servidor do kit:
+
+| Partida | Placar final | Vencedor |
+| --- | --- | --- |
+| Contagem (B) x Valor posicional (W) | B=30, W=34 | Valor posicional |
+| Valor posicional (B) x Contagem (W) | B=52, W=12 | Valor posicional |
+| Contagem (B) x Customizada (W) | B=28, W=36 | Customizada |
+| Customizada (B) x Contagem (W) | B=41, W=23 | Customizada |
+| Valor posicional (B) x Customizada (W) | B=16, W=48 | Customizada |
+| Customizada (B) x Valor posicional (W) | B=42, W=22 | Customizada |
+
+A heuristica customizada foi a mais bem-sucedida nos testes, com 4 vitorias em 4 partidas disputadas. A heuristica de valor posicional venceu as 2 partidas contra a heuristica de contagem.
+
+## Agente de torneio
+
+O arquivo `advsearch/your_agent/tournament_agent.py` usa minimax com poda alfa-beta, profundidade 3 e a heuristica customizada. Essa escolha foi feita porque a customizada teve o melhor desempenho no mini-torneio local e nao depende de arquivos externos, processos em background ou dados pre-calculados.
+
+## Extra: MCTS
+
+Foi implementada uma versao opcional de MCTS em `advsearch/your_agent/mcts.py`, com:
+
+- selecao por UCT;
+- expansao de jogadas nao visitadas;
+- simulacao aleatoria ate estado terminal;
+- retropropagacao de vitoria, empate ou derrota;
+- escolha imediata de uma jogada vencedora quando ela existe.
+
+## Testes
+
+Comando executado:
+
+```bash
+python -m unittest
+```
+
+Resultado:
+
+```text
+Ran 9 tests in 0.095s
+OK
+```
