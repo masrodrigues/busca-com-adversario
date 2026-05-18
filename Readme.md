@@ -106,7 +106,7 @@ Para ver o tabuleiro e as peças com cores, instale a biblioteca `pytermgui` (po
 - Turma: A
 - Integrantes:
   - Felipe Boff Molski - Cartão 00208153
-  - _(a preencher)_ - Cartão _(a preencher)_
+  - Marco Antônio de Souza Rodrigues - Cartão 00308589
 
 ## Bibliotecas
 
