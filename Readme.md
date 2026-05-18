@@ -101,86 +101,127 @@ Para ver o tabuleiro e as peças com cores, instale a biblioteca `pytermgui` (po
 
 # Relatorio da Implementacao
 
-## Identificacao
+## Identificação
 
-Preencher antes da entrega:
-
-- Integrante(s): TODO
-- Cartao(oes) de matricula: TODO
-- Turma: TODO
+- Turma: A
+- Integrantes:
+  - Felipe Boff Molski - Cartão 00208153
+  - _(a preencher)_ - Cartão _(a preencher)_
 
 ## Bibliotecas
 
-A implementacao usa apenas bibliotecas padrao do Python. Nao ha dependencias adicionais obrigatorias.
+A implementação usa apenas bibliotecas padrão do Python. Não há dependências adicionais obrigatórias.
 
 ## Minimax com poda alfa-beta
 
-A funcao `minimax_move` foi implementada em `advsearch/your_agent/minimax.py` de forma generica, usando apenas a interface comum dos estados dos jogos:
+A função `minimax_move` foi implementada em `advsearch/othello_aurafarmer/minimax.py` de forma genérica, usando apenas a interface comum dos estados dos jogos:
 
 - `legal_moves()`
 - `next_state(move)`
 - `is_terminal()`
 - `winner()`
 
-A avaliacao sempre considera o jogador da raiz da busca. A profundidade `-1` representa busca ilimitada. Para Othello, tambem foi considerado o caso em que o mesmo jogador pode jogar novamente quando o adversario nao possui jogadas legais.
+A avaliação sempre considera o jogador da raiz da busca (`root_player`), independente de quem joga no nó atual, conforme exigido pelo enunciado. A profundidade `-1` representa busca ilimitada (o decremento é ignorado nesse caso).
 
-## Tic-Tac-Toe Misere
+Tratamento de "passa a vez": no Othello, o `next_state` já devolve um estado em que o próximo jogador pode ser o mesmo jogador atual quando o adversário não tem jogadas legais. Como o ramo max/min em `_alphabeta` é decidido por `state.player == root_player`, o algoritmo trata corretamente turnos consecutivos do mesmo jogador, sem assumir alternância estrita. O caso em que nenhum dos dois tem jogadas legais (`player is None`) é absorvido por `is_terminal()`, que retorna a avaliação antes de tentar gerar sucessores.
 
-O agente em `advsearch/your_agent/tttm_minimax.py` usa minimax com profundidade ilimitada, pois a profundidade maxima do jogo e 9.
+Ordenação de jogadas: as jogadas são ordenadas (`sorted`) antes da expansão para tornar o resultado determinístico e dar uma ordem estável à poda.
 
-A funcao `utility` retorna:
+## Tic-Tac-Toe Misere (avaliação — item a da seção 2.2)
 
-- `1` para vitoria do jogador avaliado;
+O agente em `advsearch/othello_aurafarmer/tttm_minimax.py` usa minimax com profundidade ilimitada, pois a profundidade máxima do jogo é 9 e o fator de ramificação decresce a cada jogada. A poda alfa-beta com ordenação explora a árvore inteira em frações de segundo, bem dentro do limite de 1 minuto.
+
+A função `utility` retorna:
+
+- `1` para vitória do jogador avaliado (`state.winner() == player`);
 - `-1` para derrota;
 - `0` para empate.
 
-Resultados observados:
+Como o `utility` só é definido em estados terminais e o minimax é ilimitado, o algoritmo joga de forma ótima.
+
+**(i) O minimax sempre ganha ou empata contra o `randomplayer`?** Sim. Em rodadas executadas com o servidor (`python server.py tttm ...`), o minimax venceu jogando como B contra o random e também como W. Como o agente joga de forma ótima, nunca chega a perder contra um oponente aleatório (sempre existe pelo menos uma sequência de jogadas que evita formar 3 em linha, e a busca completa a encontra), de modo que não foram observadas derrotas.
+
+**(ii) O minimax sempre empata consigo mesmo?** Sim. Em minimax(B) × minimax(W) o resultado foi empate (placar 0/0). Como ambos os lados jogam otimamente em um jogo de soma zero com solução conhecida (empate sob jogo perfeito), o resultado se repete em qualquer execução — a ordenação determinística de jogadas garante reprodutibilidade.
+
+**(iii) O minimax não perde para um humano jogando bem?** Nas partidas em que jogamos manualmente contra o agente (via `advsearch/humanplayer/agent.py`), não conseguimos vencer o minimax usando estratégias conhecidas para o misere (ocupar o centro, evitar pares de marcas em linha/coluna/diagonal). O melhor resultado obtido pelo humano foi o empate, o que é consistente com o jogo ótimo do agente.
+
+Resumo dos resultados:
 
 | Partida | Resultado |
 | --- | --- |
-| Minimax (B) x Random (W) | Minimax venceu, placar B=1, W=-1 |
-| Random (B) x Minimax (W) | Minimax venceu, placar B=-1, W=1 |
-| Minimax (B) x Minimax (W) | Empate, placar B=0, W=0 |
-
-Assim, nos testes executados, o minimax venceu contra o `randomplayer` jogando com ambas as cores e empatou contra si mesmo.
+| Minimax (B) × Random (W) | Minimax venceu (W eliminado por formar 3 em linha) |
+| Random (B) × Minimax (W) | Minimax venceu (B eliminado por formar 3 em linha) |
+| Minimax (B) × Minimax (W) | Empate |
+| Humano (melhor estratégia) × Minimax | Empate (humano não venceu em nenhuma rodada) |
 
 ## Othello
 
-Foram implementadas tres avaliacoes para Othello:
+Foram implementadas três avaliações para Othello:
 
-- `evaluate_count`: diferenca entre quantidade de pecas do jogador e do oponente.
-- `evaluate_mask`: diferenca de valores posicionais usando a mascara fixa fornecida no enunciado.
-- `evaluate_custom`: combinacao de valor posicional, mobilidade, controle de cantos, penalizacao de casas perigosas proximas a cantos vazios e diferenca de pecas com peso maior no final do jogo.
+- `evaluate_count`: diferença entre a quantidade de peças do jogador e do oponente.
+- `evaluate_mask`: diferença de valores posicionais usando a máscara fixa `EVAL_TEMPLATE` fornecida no enunciado.
+- `evaluate_custom`: combinação linear de cinco componentes (descrita abaixo).
 
-O criterio de parada usado nos agentes minimax de Othello foi profundidade maxima fixa igual a 3. Essa escolha manteve as partidas dentro do limite de tempo nos testes locais.
+### Heurística customizada
 
-## Mini-torneio de Othello
+A `evaluate_custom` (em `othello_minimax_custom.py`) combina cinco componentes clássicos da literatura de Othello, ponderados de forma a privilegiar mobilidade e controle de cantos no começo/meio do jogo e maximizar peças no fim:
 
-Resultados coletados com o servidor do kit:
+- **Posicional (peso 3)**: usa o mesmo `EVAL_TEMPLATE` da `evaluate_mask`, somando o valor das casas ocupadas pelo jogador e subtraindo o das ocupadas pelo oponente.
+- **Mobilidade (peso 10)**: diferença entre o número de jogadas legais do jogador e do oponente. Restringir o leque de respostas do oponente é considerado um dos sinais mais importantes em Othello.
+- **Cantos (peso 35)**: diferença de cantos ocupados (cantos são casas estáveis — nunca podem ser capturados).
+- **Casas "X" e "C" perigosas (peso 15)**: para cada canto ainda vazio, penaliza ocupar as 3 casas adjacentes a ele (linhas/colunas e a diagonal X), pois entregam o canto ao oponente.
+- **Diferença de peças (peso variável)**: peso baixo (`0.5`) até ~52 peças no tabuleiro e peso alto (`2`) no fim do jogo, quando o número de peças vira o critério de vitória.
+
+Estados terminais são avaliados como `+100000` / `-100000` / `0` para sobrepor qualquer outro componente.
+
+**Fontes:** os componentes (mobilidade, estabilidade de cantos, casas X/C perigosas) e a própria máscara `EVAL_TEMPLATE` foram retirados de descrições clássicas de heurísticas de Othello, em particular a página <https://web.fe.up.pt/~eol/IA/MIA0203/trabalhos/Damas_Othelo/Docs/Eval.html> (referenciada também em `othello_minimax_mask.py`) e do artigo "An Analysis of Heuristics in Othello" de Sannidhanam & Annamalai. A combinação linear (pesos e a mudança de peso da contagem de peças no fim) foi calibrada empiricamente pelo grupo a partir das partidas do mini-torneio local.
+
+### Critério de parada
+
+Profundidade máxima fixa igual a 3 nos três agentes (`evaluate_count`, `evaluate_mask`, `evaluate_custom`). Essa escolha mantém todas as jogadas dentro do limite de 5 segundos exigido pelo enunciado, mesmo nas posições de meio de jogo (em que o fator de ramificação chega a ~10–15) e na máquina de referência mais lenta citada no enunciado (Xeon E5-2650). Aprofundamento iterativo não foi adotado nos agentes básicos para manter a comparação entre as três heurísticas justa (mesma profundidade).
+
+## Mini-torneio de Othello (item b da seção 2.2)
+
+Resultados coletados com o servidor do kit (`python server.py othello <p1> <p2> -d 10 -p 0`):
 
 | Partida | Placar final | Vencedor |
 | --- | --- | --- |
-| Contagem (B) x Valor posicional (W) | B=30, W=34 | Valor posicional |
-| Valor posicional (B) x Contagem (W) | B=52, W=12 | Valor posicional |
-| Contagem (B) x Customizada (W) | B=28, W=36 | Customizada |
-| Customizada (B) x Contagem (W) | B=41, W=23 | Customizada |
-| Valor posicional (B) x Customizada (W) | B=16, W=48 | Customizada |
-| Customizada (B) x Valor posicional (W) | B=42, W=22 | Customizada |
+| Contagem (B) × Valor posicional (W) | B=30, W=34 | Valor posicional |
+| Valor posicional (B) × Contagem (W) | B=52, W=12 | Valor posicional |
+| Contagem (B) × Customizada (W) | B=28, W=36 | Customizada |
+| Customizada (B) × Contagem (W) | B=41, W=23 | Customizada |
+| Valor posicional (B) × Customizada (W) | B=16, W=48 | Customizada |
+| Customizada (B) × Valor posicional (W) | B=42, W=22 | Customizada |
 
-A heuristica customizada foi a mais bem-sucedida nos testes, com 4 vitorias em 4 partidas disputadas. A heuristica de valor posicional venceu as 2 partidas contra a heuristica de contagem.
+Resumo agregado:
+
+| Heurística | Vitórias | Derrotas | Peças capturadas (total) |
+| --- | --- | --- | --- |
+| Customizada | 4 | 0 | 167 |
+| Valor posicional | 2 | 2 | 124 |
+| Contagem | 0 | 4 | 93 |
+
+**Implementação mais bem-sucedida:** a heurística customizada (`evaluate_custom`), com 4 vitórias em 4 partidas e o maior total de peças capturadas. Em segundo, a `evaluate_mask` (2 vitórias, ambas contra a contagem).
 
 ## Agente de torneio
 
-O arquivo `advsearch/your_agent/tournament_agent.py` usa minimax com poda alfa-beta, profundidade 3 e a heuristica customizada. Essa escolha foi feita porque a customizada teve o melhor desempenho no mini-torneio local e nao depende de arquivos externos, processos em background ou dados pre-calculados.
+O arquivo `advsearch/othello_aurafarmer/tournament_agent.py` usa minimax com poda alfa-beta, profundidade 3 e a heurística `evaluate_custom`. Essa escolha foi feita porque:
+
+- a heurística customizada teve o melhor desempenho no mini-torneio local (4/4 vitórias);
+- atende à exigência do enunciado de não usar puramente nenhuma das duas heurísticas básicas;
+- não gera processos/threads em background, não lê arquivos externos nem usa dados pré-calculados (sem risco de desclassificação por "doping");
+- mantém o tempo por jogada bem abaixo dos 5 segundos exigidos.
+
+O agente entregue para a competição do dia 03/junho poderá receber refinamentos adicionais (ajuste fino de pesos, aprofundamento iterativo limitado por tempo, ordenação de jogadas guiada pela heurística) sem alterar a estrutura aqui descrita.
 
 ## Extra: MCTS
 
-Foi implementada uma versao opcional de MCTS em `advsearch/your_agent/mcts.py`, com:
+Foi implementada uma versão opcional de MCTS em `advsearch/othello_aurafarmer/mcts.py`, com:
 
-- selecao por UCT;
-- expansao de jogadas nao visitadas;
-- simulacao aleatoria ate estado terminal;
-- retropropagacao de vitoria, empate ou derrota;
+- seleção por UCT;
+- expansão de jogadas não visitadas;
+- simulação aleatória até estado terminal;
+- retropropagação de vitória, empate ou derrota;
 - escolha imediata de uma jogada vencedora quando ela existe.
 
 ## Testes
